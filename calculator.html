@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --body-clr:#2B2B2E; --body-clr-2:#38383C;
+    --screen:#C9D6C4; --screen-text:#1D2B1A;
+    --key:#F2EFE9; --key-text:#26262A;
+    --key-dark:#4A4A50; --key-dark-text:#F2EFE9;
+    --accent:#E8712C; --accent-text:#fff;
+    --shadow: rgba(0,0,0,0.35);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  html{padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);}
+  body{
+    margin:0; display:flex; align-items:center; justify-content:center; min-height:100%;
+    background:radial-gradient(ellipse at top, #45454A, #1B1B1D 70%);
+    font-family:'Inter',sans-serif; padding:24px;
+  }
+  .device{
+    width:100%; max-width:340px;
+    background:linear-gradient(160deg, var(--body-clr-2), var(--body-clr));
+    border-radius:26px; padding:20px 16px 24px;
+    box-shadow: 0 30px 60px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .brand{
+    display:flex; justify-content:space-between; align-items:baseline; padding:2px 6px 14px;
+    color:#8A8A90; font-size:11px; letter-spacing:.04em;
+  }
+  .brand b{color:#D9D9DC; font-weight:600; font-size:13px;}
+  .screen{
+    background:var(--screen); border-radius:14px; padding:22px 18px 16px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.25);
+    margin-bottom:16px; overflow:hidden;
+  }
+  .screen-history{
+    min-height:18px; text-align:right; font-family:'Space Mono',monospace; font-size:13px;
+    color:#4C5C46; opacity:.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .screen-main{
+    text-align:right; font-family:'Space Mono',monospace; font-weight:700;
+    font-size:clamp(28px, 9vw, 40px); color:var(--screen-text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:4px;
+  }
+  .pad{display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
+  button{
+    border:none; border-radius:50%; aspect-ratio:1; font-family:'Inter',sans-serif;
+    font-size:19px; font-weight:600; cursor:pointer; color:var(--key-text); background:var(--key);
+    box-shadow: 0 3px 0 rgba(0,0,0,0.18), 0 2px 4px rgba(0,0,0,0.25);
+    transition: transform .05s ease;
+  }
+  button:active{ transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.18); }
+  button.fn{ background:var(--key-dark); color:var(--key-dark-text); font-weight:500; font-size:16px;}
+  button.op{ background:var(--accent); color:var(--accent-text); font-size:22px;}
+  button.zero{ grid-column: span 2; border-radius:32px; aspect-ratio:auto; }
+  button.eq{ background:var(--accent); color:var(--accent-text); }
+
+  @media (prefers-color-scheme: light){
+    body{ background:radial-gradient(ellipse at top, #eee, #cfcfcf 70%); }
+  }
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="brand"><b>CALC</b><span>solar</span></div>
+    <div class="screen">
+      <div class="screen-history" id="history">&nbsp;</div>
+      <div class="screen-main" id="display">0</div>
+    </div>
+    <div class="pad">
+      <button class="fn" data-action="clear">AC</button>
+      <button class="fn" data-action="negate">+/&minus;</button>
+      <button class="fn" data-action="percent">%</button>
+      <button class="op" data-action="op" data-op="÷">÷</button>
+
+      <button data-action="num" data-num="7">7</button>
+      <button data-action="num" data-num="8">8</button>
+      <button data-action="num" data-num="9">9</button>
+      <button class="op" data-action="op" data-op="×">×</button>
+
+      <button data-action="num" data-num="4">4</button>
+      <button data-action="num" data-num="5">5</button>
+      <button data-action="num" data-num="6">6</button>
+      <button class="op" data-action="op" data-op="−">−</button>
+
+      <button data-action="num" data-num="1">1</button>
+      <button data-action="num" data-num="2">2</button>
+      <button data-action="num" data-num="3">3</button>
+      <button class="op" data-action="op" data-op="+">+</button>
+
+      <button class="zero" data-action="num" data-num="0">0</button>
+      <button data-action="decimal">.</button>
+      <button class="eq" data-action="equals">=</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const display = document.getElementById('display');
+  const history = document.getElementById('history');
+  let current = "0";
+  let prev = null;
+  let op = null;
+  let justEvaluated = false;
+
+  function fmt(n){
+    if (!isFinite(n)) return "Error";
+    let s = String(Number(n.toPrecision(12)));
+    if (s.length > 12) s = Number(n).toExponential(5);
+    return s;
+  }
+  function render(){
+    display.textContent = current;
+    history.textContent = prev !== null ? `${fmt(prev)} ${op || ''}` : '\u00A0';
+  }
+  function compute(a,b,operator){
+    switch(operator){
+      case '+': return a+b;
+      case '−': return a-b;
+      case '×': return a*b;
+      case '÷': return b === 0 ? NaN : a/b;
+      default: return b;
+    }
+  }
+  function inputNum(d){
+    if (justEvaluated){ current = "0"; prev = null; op = null; justEvaluated = false; }
+    if (current === "0") current = d;
+    else if (current.replace('-','').length < 12) current += d;
+    render();
+  }
+  function inputDecimal(){
+    if (justEvaluated){ current = "0"; prev = null; op = null; justEvaluated = false; }
+    if (!current.includes('.')) current += '.';
+    render();
+  }
+  function inputOp(o){
+    if (prev !== null && op && !justEvaluated){
+      prev = compute(prev, parseFloat(current), op);
+      current = fmt(prev);
+    } else {
+      prev = parseFloat(current);
+    }
+    op = o;
+    justEvaluated = false;
+    current = "0";
+    render();
+    history.textContent = `${fmt(prev)} ${op}`;
+  }
+  function equals(){
+    if (op === null || prev === null) return;
+    const result = compute(prev, parseFloat(current), op);
+    history.textContent = `${fmt(prev)} ${op} ${current} =`;
+    current = fmt(result);
+    prev = null; op = null; justEvaluated = true;
+    display.textContent = current;
+  }
+  function clearAll(){ current="0"; prev=null; op=null; justEvaluated=false; render(); }
+  function negate(){ if (current !== "0") current = current.startsWith('-') ? current.slice(1) : '-'+current; render(); }
+  function percent(){ current = fmt(parseFloat(current)/100); render(); }
+
+  document.querySelector('.pad').addEventListener('click', (e)=>{
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'num') inputNum(btn.dataset.num);
+    else if (action === 'decimal') inputDecimal();
+    else if (action === 'op') inputOp(btn.dataset.op);
+    else if (action === 'equals') equals();
+    else if (action === 'clear') clearAll();
+    else if (action === 'negate') negate();
+    else if (action === 'percent') percent();
+  });
+
+  window.addEventListener('keydown', (e)=>{
+    if (e.key >= '0' && e.key <= '9') inputNum(e.key);
+    else if (e.key === '.') inputDecimal();
+    else if (e.key === '+') inputOp('+');
+    else if (e.key === '-') inputOp('−');
+    else if (e.key === '*') inputOp('×');
+    else if (e.key === '/') { e.preventDefault(); inputOp('÷'); }
+    else if (e.key === 'Enter' || e.key === '=') equals();
+    else if (e.key === 'Escape') clearAll();
+    else if (e.key === '%') percent();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
